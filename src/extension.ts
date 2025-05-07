@@ -2,11 +2,13 @@
 import * as vscode from 'vscode';
 import { PieuvreProver } from './prover';
 import { ProofManager } from './proof-manager';
+import { AnsiToHtml, createThemeAwareAnsiConverter } from './ansi'
 
 // Global references
 let proofPanel: vscode.WebviewPanel | undefined;
 let prover: PieuvreProver;
 let proofManager: ProofManager;
+let ansiHtml: AnsiToHtml = createThemeAwareAnsiConverter();
 
 export function activate(context: vscode.ExtensionContext) {
 		prover = new PieuvreProver();
@@ -134,13 +136,14 @@ function createProofPanel(context: vscode.ExtensionContext): vscode.WebviewPanel
 function updateProofState(response: string) {
     if (proofPanel) {
         const position = proofManager.getPositionStatus();
+        const message = ansiHtml.convert(response);
         proofPanel.webview.postMessage({
             type: 'proof-update',
-            content: response,
+            content: message,
             position
         });
         proofPanel.webview.postMessage({
-            goals: response
+            goals: message
         });
     }
 }

@@ -20,6 +20,7 @@ _build/
 # --- Node.js/VS Code Extension ---
 # Dependencies
 node_modules/
+.npm-packages-offline-cache/
 
 # Build output
 out/

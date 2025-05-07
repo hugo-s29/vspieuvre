@@ -45,15 +45,12 @@ export class ProofManager {
     public getNextSentence(): {text: string, range: vscode.Range} | null {
         if (!this.document) return null;
 
-        // TODO(Juliette): c'est quoi ce truc lent pour rien
-        for (let i = 0; i < this.sentences.length; i++) {
-            if (!this.processedSentences.includes(i)) {
-                this.processedSentences.push(i);
-                this.updateDecorations();
-                return this.sentences[i];
-            }
-        }
-        return null;
+        let n = this.processedSentences.length;
+        this.processedSentences.push(n);
+        if (n >= this.sentences.length)
+          return null;
+        this.updateDecorations();
+        return this.sentences[n];
     }
 
     public undoLastStep(): void {
