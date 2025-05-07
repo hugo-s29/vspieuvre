@@ -14,15 +14,79 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:pieuvre",
+    "onCommand:vspieuvre.showProofPanel",
+    "onCommand:extension.goToDefinition",
+    "onCommand:extension.hoverInformation"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": [
+      {
+        "title": "VSPieuvre Configuration",
+        "properties": {
+          "vspieuvre.pieuvre Binary.Path": {
+            "type": "string",
+            "description": "Path to the pieuvre executable"
+          },
+          "vspieuvre.pieuvre Binary.Flags": {
+            "type": "string",
+            "description": "Flags for the pieuvre executable"
+          }
+        }
+      }
+    ],
     "commands": [
       {
-        "command": "vspieuvre.helloWorld",
-        "title": "Hello World"
+        "command": "vspieuvre.showProofPanel",
+        "title": "Show Proof Panel",
+        "category": "Pieuvre"
+      },
+      {
+        "command": "vspieuvre.stepForward",
+        "title": "Pieuvre: Step Forward",
+        "category": "Pieuvre"
+      },
+      {
+        "command": "vspieuvre.stepBack",
+        "title": "Pieuvre: Step Back",
+        "category": "Pieuvre"
       }
-    ]
+    ],
+    "views": {
+        "explorer": [
+            {
+                "id": "vspieuvre.proofView",
+                "name": "Proof State"
+            }
+        ]
+    },
+    "keybindings": [
+      {
+        "command": "vspieuvre.stepForward",
+        "key": "ctrl+alt+right",
+        "mac": "cmd+alt+right",
+        "when": "editorLangId == pieuvre"
+      },
+      {
+        "command": "vspieuvre.stepBack",
+        "key": "ctrl+alt+left",
+        "mac": "cmd+alt+left",
+        "when": "editorLangId == pieuvre"
+      }
+    ],
+    "languages": [{
+      "id": "pieuvre",
+      "aliases": ["Pieuvre"],
+      "extensions": [".pvr", ".8pus", ".lam"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "pieuvre",
+      "scopeName": "source.pieuvre",
+      "path": "./syntaxes/pieuvre.tmLanguage.json"
+    }]
   },
   "scripts": {
     "vscode:prepublish": "yarn run package",

@@ -1,0 +1,100 @@
+undo.
+Lemma conj_1 : forall (P Q : Prop), P /\ Q -> P.
+
+Proof.
+ intros.
+
+case H.
+
+Qed.
+undo.
+
+Fail.
+undo.
+
+fail.
+
+assumption.
+undo.
+
+obs.
+
+assumption.
+undo.
+ intros.
+
+case H.
+
+assumption.
+undo.
+ intros.
+
+case H.
+
+assumption.
+
+Qed.
+
+Lemma conj_2 : forall (P Q : Prop), P -> Q -> P /\ Q.
+
+Proof.
+
+obs.
+
+Qed.
+undo.
+Lemma conj_1 : forall (P Q : Prop), P /\ Q -> P.
+
+Proof.
+ intros.
+
+case H.
+
+assumption.
+
+Qed.
+
+Lemma conj_2 : forall (P Q : Prop), P -> Q -> P /\ Q.
+
+Proof.
+undo.
+Lemma conj_1 : forall (P Q : Prop), P /\ Q -> P.
+
+Proof.
+ intros.
+
+case H.
+
+assumption.
+
+Qed.
+
+Lemma conj_2 : forall (P Q : Prop), P -> Q -> P /\ Q.
+
+Proof.
+
+obs.
+
+Qed.
+
+Lemma disj_1 : forall (P Q : Prop), P -> P \/ Q.
+
+Proof.
+Lemma conj_1 : forall (P Q : Prop), P /\ Q -> P.
+
+Proof.
+ intros.
+undo. Show.
+Lemma conj_1 : forall (P Q : Prop), P /\ Q -> P.
+
+Proof.
+ intros.
+
+case H.
+
+.
+
+Qed.
+
+Lemma conj_2 : forall (P Q : Prop), P -> Q -> P /\ Q.
+undo. Show.
