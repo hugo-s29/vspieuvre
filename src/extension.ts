@@ -1,14 +1,23 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { PieuvreProver } from './prover';
 import { ProofManager } from './proof-manager';
 import { AnsiToHtml, createThemeAwareAnsiConverter } from './ansi';
 import webviewContent from './webview.html';
 
+import {
+    LanguageClient,
+    LanguageClientOptions,
+    ServerOptions,
+    TransportKind,
+} from 'vscode-languageclient/node';
+
 // Global references
 let proofPanel: vscode.WebviewPanel | undefined;
 let prover: PieuvreProver;
 let proofManager: ProofManager;
 let ansiHtml: AnsiToHtml = createThemeAwareAnsiConverter();
+let client: LanguageClient;
 
 export function activate(context: vscode.ExtensionContext) {
     prover = new PieuvreProver();
@@ -22,6 +31,45 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     proofManager = new ProofManager();
+
+    let serverModule = context.asAbsolutePath(path.join('dist', 'lsp.js'));
+    let debugOptions = { execArgv: ['--nolazy', '--inspect=6009'] };
+
+    let serverOptions: ServerOptions = {
+        run: { module: serverModule, transport: TransportKind.ipc },
+        debug: {
+            module: serverModule,
+            transport: TransportKind.ipc,
+            options: debugOptions,
+        },
+    };
+
+    let clientOptions: LanguageClientOptions = {
+        documentSelector: [{ scheme: 'file', language: 'pieuvre' }],
+        synchronize: {
+            fileEvents:
+                vscode.workspace.createFileSystemWatcher('**/.clientrc'),
+        },
+    };
+
+    client = new LanguageClient(
+        'pieuvreLanguageServerClient',
+        'Pieuvre (Language Server Client)',
+        serverOptions,
+        clientOptions,
+    );
+
+    context.subscriptions.push({ dispose: () => client.stop() });
+
+    client
+        .start()
+        .then(() => vscode.window.showInformationMessage('LSP Client started'))
+        .catch((err) => {
+            console.error('LSP client failed to start:', err);
+            vscode.window.showErrorMessage(
+                'LSP client failed to start: ' + err.message,
+            );
+        });
 
     // Track active document
     vscode.window.onDidChangeActiveTextEditor((editor) => {
