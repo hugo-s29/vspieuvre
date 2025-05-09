@@ -34,7 +34,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # VS Code
-.vscode/
+.vscode/*
 !.vscode/launch.json
 !.vscode/tasks.json
 !.vscode/extensions.json
@@ -63,3 +63,6 @@ coverage/
 
 # Optional: Local development config overrides
 local.*
+
+.ocamline_history.txt
+result
