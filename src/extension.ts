@@ -148,6 +148,10 @@ function createProofPanel(
                 case 'restart-prover':
                     await vscode.commands.executeCommand('vspieuvre.restartProver');
                     break;            
+                case 'send-custom-command':
+                    const response = await prover.sendCommand(message.text);
+                    updateProofState(response);
+                    break;            
             }
         },
         undefined,

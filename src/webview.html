@@ -6,7 +6,7 @@
             http-equiv="Content-Security-Policy"
             content="
         default-src 'none';
-        script-src vscode-resource: 'unsafe-inline';
+        script-src vscode-resource: 'unsafe-inline' 'unsafe-eval';
         style-src vscode-resource: 'unsafe-inline';
     "
         />
@@ -53,6 +53,28 @@
             button.warning:hover {
                 background-color: var(--vscode-inputValidation-warningBackground);
             }
+
+            .command-container {
+                margin-top: 24px;
+            }
+
+            .command-editor {
+                background-color: var(--vscode-editor-background);
+                color: var(--vscode-editor-foreground);
+                border: 1px solid var(--vscode-input-border);
+                padding: 8px;
+                min-height: 60px;
+                font-family: var(--vscode-editor-font-family);
+                font-size: var(--vscode-editor-font-size);
+                white-space: pre;
+                margin: 8px 0;
+                overflow: auto;
+            }
+
+            .command-editor:focus {
+                outline: 1px solid var(--vscode-focusBorder);
+            }
+
             .goal {
                 background-color: var(--vscode-textBlockQuote-background);
                 border-left: 3px solid var(--vscode-focusBorder);
@@ -89,8 +111,35 @@
             <button id="restartProver" class="warning">⟳ Restart Prover</button>
         </div>
 
+        <div class="command-container">
+            <h3>Send Command to Prover</h3>
+            <div id="commandEditor" class="command-editor" contenteditable="true" spellcheck="false"></div>
+            <button id="sendCommand" class="secondary">Send Command</button>
+        </div>
+
         <script>
+
+            function loadMonaco() {
+                return new Promise((resolve) => {
+                    const loaderScript = document.createElement('script');
+                    loaderScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs/loader.min.js';
+                    loaderScript.onload = () => {
+                        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs' }});
+                        require(['vs/editor/editor.main'], resolve);
+                    };
+                    document.body.appendChild(loaderScript);
+                });
+            }        
+
             const vscode = acquireVsCodeApi();
+
+            <!-- const monacoLoader = await loadMonaco(); -->
+            <!-- const editor = monaco.editor.create(document.getElementById('commandEditor'), { -->
+                <!-- value: '', -->
+                <!-- language: 'pieuvre', -->
+                <!-- minimap: { enabled: true }, -->
+                <!-- automaticLayout: true, -->
+            <!-- }); -->
 
             // Button handlers
             document
@@ -107,6 +156,17 @@
 
             document.getElementById('restartProver').addEventListener('click', () => {
                 vscode.postMessage({ command: 'restart-prover' });
+            });
+
+            document.getElementById('sendCommand').addEventListener('click', () => {
+                const command = document.getElementById('commandEditor').innerText.trim();
+                if (command) {
+                    vscode.postMessage({ 
+                        command: 'send-custom-command',
+                        text: command 
+                    });
+                    document.getElementById('commandEditor').innerText = '';
+                }
             });
 
             // Handle updates from extension
