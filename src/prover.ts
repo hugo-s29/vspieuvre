@@ -1,4 +1,3 @@
-
 import * as vscode from 'vscode';
 import { ChildProcess, spawn } from 'child_process';
 
@@ -14,25 +13,32 @@ class BinaryNotFoundError extends Error {
 }
 
 export class PieuvreProver {
+    public outputChannel: vscode.OutputChannel;
+
     private process: ChildProcess | null = null;
-    private outputChannel: vscode.OutputChannel;
     private restartPromise: Promise<void> | null = null;
 
     constructor() {
-        this.outputChannel = vscode.window.createOutputChannel('Pieuvre Prover');
+        this.outputChannel =
+            vscode.window.createOutputChannel('Pieuvre Prover');
     }
 
     async start(): Promise<boolean> {
         const config = vscode.workspace.getConfiguration('vspieuvre');
         const binaryPath = config.get<string>('pieuvre Binary.Path');
-        const flags = config.get<string>('pieuvre Binary.Flags', '').split(' ').filter(x => x.length > 0);
+        const flags = config
+            .get<string>('pieuvre Binary.Flags', '')
+            .split(' ')
+            .filter((x) => x.length > 0);
 
         try {
             if (!binaryPath) {
-                throw new BinaryNotFoundError('Pieuvre binary path not configured');
+                throw new BinaryNotFoundError(
+                    'Pieuvre binary path not configured',
+                );
             }
             this.process = spawn(binaryPath, flags, { stdio: 'pipe' });
-            
+
             this.process.stdout?.on('data', (data) => {
                 this.outputChannel.append(data.toString());
             });
@@ -42,7 +48,9 @@ export class PieuvreProver {
             });
 
             this.process.on('close', (code) => {
-                this.outputChannel.appendLine(`Prover exited with code ${code}`);
+                this.outputChannel.appendLine(
+                    `Prover exited with code ${code}`,
+                );
             });
 
             return true;
@@ -54,13 +62,13 @@ export class PieuvreProver {
 
     public async restart(): Promise<void> {
         if (this.restartPromise) return this.restartPromise;
-        
-        this.restartPromise = (async () => {
-            this.stop();
-            await this.start();
+
+        this.stop();
+
+        this.restartPromise = this.start().then((_) => {
             this.restartPromise = null;
-        })();
-        
+        });
+
         return this.restartPromise;
     }
 
@@ -77,7 +85,7 @@ export class PieuvreProver {
             };
 
             this.process?.stdout?.on('data', listener);
-            this.process?.stdin?.write(`${command}\n`);
+            this.process?.stdin?.write(`${command.replaceAll('\n', ' ')}\n`);
         });
     }
 
