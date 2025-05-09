@@ -45,6 +45,14 @@
             button.secondary:hover {
                 background-color: var(--vscode-button-secondaryHoverBackground);
             }
+            button.warning {
+                background-color: var(--vscode-button-secondaryBackground);
+                color: var(--vscode-button-secondaryForeground);
+                border-color: var(--vscode-inputValidation-warningBorder);
+            }
+            button.warning:hover {
+                background-color: var(--vscode-inputValidation-warningBackground);
+            }
             .goal {
                 background-color: var(--vscode-textBlockQuote-background);
                 border-left: 3px solid var(--vscode-focusBorder);
@@ -77,6 +85,9 @@
             <button id="stepBack" class="secondary">◀ Step Back</button>
             <span id="positionIndicator">0/0 sentences processed</span>
         </div>
+        <div class="button-container">
+            <button id="restartProver" class="warning">⟳ Restart Prover</button>
+        </div>
 
         <script>
             const vscode = acquireVsCodeApi();
@@ -93,6 +104,10 @@
                 .addEventListener('click', () => {
                     vscode.postMessage({ command: 'step-back' });
                 });
+
+            document.getElementById('restartProver').addEventListener('click', () => {
+                vscode.postMessage({ command: 'restart-prover' });
+            });
 
             // Handle updates from extension
             window.addEventListener('message', (event) => {

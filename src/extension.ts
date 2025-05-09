@@ -75,9 +75,26 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.commands.executeCommand('vspieuvre.showProofPanel');
 
             proofManager.undoLastStep();
-            const response = await prover.sendCommand('Undo.');
+            const response = await prover.sendCommand('undo.');
             updateProofState(response);
         }),
+
+
+        
+        vscode.commands.registerCommand('vspieuvre.restartProver', async () => {
+            await prover.stop();
+            prover = new PieuvreProver();
+            const success = await prover.start();
+            if (success) {
+                vscode.window.showInformationMessage('Pieuvre prover restarted successfully');
+                // Optionally reset proof state
+                proofManager.dispose();
+                proofManager = new ProofManager();
+                updateProofState("🐙");
+            } else {
+                vscode.window.showErrorMessage('Failed to restart Pieuvre prover');
+            }
+        }),    
     );
 
     context.subscriptions.push(
@@ -128,6 +145,9 @@ function createProofPanel(
                 case 'step-back':
                     await vscode.commands.executeCommand('vspieuvre.stepBack');
                     break;
+                case 'restart-prover':
+                    await vscode.commands.executeCommand('vspieuvre.restartProver');
+                    break;            
             }
         },
         undefined,
