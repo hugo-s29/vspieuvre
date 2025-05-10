@@ -7,6 +7,7 @@ export class ProofManager {
     private document?: vscode.TextDocument;
     private decorationType: vscode.TextEditorDecorationType;
     private currentDecorationType: vscode.TextEditorDecorationType;
+    private errorDecorationType: vscode.TextEditorDecorationType;
     private documentVersion: number = -1;
     private changeSubscription: vscode.Disposable;
 
@@ -20,6 +21,11 @@ export class ProofManager {
             vscode.window.createTextEditorDecorationType({
                 backgroundColor: 'rgba(100, 200, 255, 0.3)',
             });
+        this.errorDecorationType = vscode.window.createTextEditorDecorationType(
+            {
+                backgroundColor: 'rgba(255, 0, 0, 0.3)',
+            },
+        );
 
         // Setup document change listener
         this.changeSubscription = vscode.workspace.onDidChangeTextDocument(
@@ -46,21 +52,27 @@ export class ProofManager {
         this.updateDecorations();
     }
 
-    public getNextSentence(): { text: string; range: vscode.Range } | null {
+    public getNextSentence(
+        redecorate: boolean = true,
+    ): { text: string; range: vscode.Range } | null {
         if (!this.document) return null;
 
         let n = this.processedSentences.length;
         this.processedSentences.push(n);
         if (n >= this.sentences.length) return null;
-        this.updateDecorations();
+        if (redecorate) this.updateDecorations();
         return this.sentences[n];
     }
 
-    public undoLastStep(): void {
-        if (this.processedSentences.length > 0) {
-            this.processedSentences.pop();
-            this.updateDecorations();
+    public undoLastStep(redecorate: boolean = true): string | null {
+        let undone = this.processedSentences.pop();
+
+        if (undone !== undefined) {
+            if (redecorate) this.updateDecorations();
+            return this.sentences[undone].text;
         }
+
+        return null;
     }
 
     public getPositionStatus(): { current: number; total: number } {
@@ -93,7 +105,7 @@ export class ProofManager {
         return sentences;
     }
 
-    private updateDecorations(): void {
+    public updateDecorations(error: boolean = false): void {
         if (!this.document) return;
 
         const editor = vscode.window.visibleTextEditors.find(
@@ -105,6 +117,9 @@ export class ProofManager {
             const processedRanges = this.processedSentences
                 .map((i) => this.sentences[i]?.range)
                 .filter(Boolean) as vscode.Range[];
+
+            if (error) processedRanges.pop();
+
             editor.setDecorations(this.decorationType, processedRanges);
 
             // Highlight current sentence
@@ -114,14 +129,19 @@ export class ProofManager {
                           this.processedSentences.length - 1
                       ]
                     : null;
+
             const currentRange =
                 currentIndex !== null
                     ? this.sentences[currentIndex]?.range
                     : null;
 
             editor.setDecorations(
-                this.currentDecorationType,
+                error ? this.errorDecorationType : this.currentDecorationType,
                 currentRange ? [currentRange] : [],
+            );
+            editor.setDecorations(
+                error ? this.currentDecorationType : this.errorDecorationType,
+                [],
             );
         }
     }

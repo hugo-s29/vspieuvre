@@ -11,6 +11,7 @@ import {
     ServerOptions,
     TransportKind,
 } from 'vscode-languageclient/node';
+import { ExtensionPieuvreProver } from './ext-prover';
 
 // Global references
 let proofPanel: vscode.WebviewPanel | undefined;
@@ -20,15 +21,8 @@ let ansiHtml: AnsiToHtml = createThemeAwareAnsiConverter();
 let client: LanguageClient;
 
 export function activate(context: vscode.ExtensionContext) {
-    prover = new PieuvreProver();
-
-    prover.start().then((success) => {
-        if (success) {
-            vscode.window.showInformationMessage(
-                'Pieuvre prover started successfully',
-            );
-        }
-    });
+    prover = new ExtensionPieuvreProver();
+    prover.start();
 
     proofManager = new ProofManager();
 
@@ -58,6 +52,15 @@ export function activate(context: vscode.ExtensionContext) {
         serverOptions,
         clientOptions,
     );
+
+    const config = vscode.workspace.getConfiguration('vspieuvre');
+    const bin = config.get<string>('pieuvre Binary.Path');
+    const flags = config
+        .get<string>('pieuvre Binary.Flags', '')
+        .split(' ')
+        .filter((x) => x.length > 0);
+
+    client.sendNotification('workspace/preferences', { bin, flags });
 
     context.subscriptions.push({ dispose: () => client.stop() });
 
@@ -103,15 +106,32 @@ export function activate(context: vscode.ExtensionContext) {
 
             const sentence = proofManager.getNextSentence();
             if (editor && sentence) {
-                const response = await prover.sendCommand(sentence.text);
-                updateProofState(response);
+                try {
+                    const response = await prover.sendCommand(
+                        '[EXEC]',
+                        sentence.text,
+                    );
+                    updateProofState(response);
 
-                // Highlight in editor
-                editor.selection = new vscode.Selection(
-                    sentence.range.end,
-                    sentence.range.end,
-                );
-                editor.revealRange(sentence.range);
+                    // Highlight in editor
+                    editor.selection = new vscode.Selection(
+                        sentence.range.end,
+                        sentence.range.end,
+                    );
+                    editor.revealRange(sentence.range);
+                } catch (err: any) {
+                    proofManager.updateDecorations(true);
+                    proofManager.undoLastStep(false);
+                    const wasProcessing = prover.cancelNextCommands();
+                    if (wasProcessing) proofManager.undoLastStep(false);
+                    updateProofState(err.toString());
+
+                    editor.selection = new vscode.Selection(
+                        sentence.range.end,
+                        sentence.range.end,
+                    );
+                    editor.revealRange(sentence.range);
+                }
             } else {
                 vscode.window.showInformationMessage(
                     'No more sentences to process!',
@@ -122,9 +142,11 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('vspieuvre.stepBack', async () => {
             vscode.commands.executeCommand('vspieuvre.showProofPanel');
 
-            proofManager.undoLastStep();
-            const response = await prover.sendCommand('Undo.');
-            updateProofState(response);
+            let lastStep = proofManager.undoLastStep();
+            if (lastStep) {
+                const response = await prover.sendCommand('[UNDO]', lastStep);
+                updateProofState(response);
+            }
         }),
     );
 
@@ -200,7 +222,7 @@ function createProofPanel(
 }
 
 // In extension.ts activation
-function updateProofState(response: string) {
+function updateProofState(response: string, error: boolean = false) {
     if (proofPanel) {
         const position = proofManager.getPositionStatus();
         const message = ansiHtml.convert(response);
