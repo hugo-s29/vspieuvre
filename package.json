@@ -32,7 +32,13 @@
                     },
                     "vspieuvre.pieuvre Binary.Flags": {
                         "type": "string",
-                        "description": "Flags for the pieuvre executable"
+                        "description": "Flags for the pieuvre executable",
+                        "default": ""
+                    },
+                    "vspieuvre.pieuvre LSP.Show LSP Logs": {
+                        "type": "boolean",
+                        "description": "Show logs from the LSP (interactions with the pieuvre instance)",
+                        "default": true
                     }
                 }
             }

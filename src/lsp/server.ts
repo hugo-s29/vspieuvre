@@ -6,11 +6,15 @@ import {
     TextDocumentPositionParams,
     DefinitionParams,
     DidChangeTextDocumentParams,
+    Diagnostic,
+    Range,
+    DiagnosticSeverity,
 } from 'vscode-languageserver/node';
 
 import { Position, TextDocument } from 'vscode-languageserver-textdocument';
 import { LSPPieuvreProver } from './lsp-prover';
 import { hash } from 'crypto';
+import { keywordCompletionItems, keywords } from './keywords';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -21,12 +25,15 @@ type IVarTypeResult =
     | { kind: 'error'; message: string }
     | { kind: 'unknown' };
 
-let lastProcessedVersion: number | null = null;
-let lastData: {
+interface ISentenceData {
     hash: string;
     sentence: string;
     result: Map<string, IVarTypeResult[]>;
-}[] = [];
+    range: Range;
+}
+
+let lastProcessedVersion: number | null = null;
+let lastData: ISentenceData[] = [];
 
 connection.onInitialize((_) => {
     console.log('LSP Initialized');
@@ -46,9 +53,17 @@ let prover: LSPPieuvreProver | undefined;
 
 connection.onNotification(
     'workspace/preferences',
-    ({ bin, flags }: { bin: string; flags: string[] }) => {
+    ({
+        bin,
+        flags,
+        showLog,
+    }: {
+        bin: string;
+        flags: string[];
+        showLog: boolean;
+    }) => {
         prover?.stop();
-        prover = new LSPPieuvreProver(bin, flags);
+        prover = new LSPPieuvreProver(bin, flags, showLog);
         prover.start();
     },
 );
@@ -56,10 +71,10 @@ connection.onNotification(
 connection.onCompletion(
     (textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
         const document = documents.get(textDocumentPosition.textDocument.uri);
-        if (document) {
-            update(document);
+        if (!document) {
         }
-        return [];
+
+        return keywordCompletionItems;
     },
 );
 
@@ -69,86 +84,157 @@ connection.onDefinition((params: DefinitionParams) => {
         return null;
     }
 
-    update(document);
-
     return null;
 });
 
-connection.onHover((params) => {
+//@ts-ignore
+connection.onHover(async (params) => {
     const document = documents.get(params.textDocument.uri);
-    if (!document) {
+    if (!document) return null;
+
+    try {
+        await update(document);
+
+        const text = document.getText();
+
+        const posOffset = getOffsetFromPosition(text, params.position);
+        const sentence = getSurroundingSentence(text, posOffset);
+        const offset = posOffset - sentence.start;
+
+        const word = getWordAtOffset(sentence.sentence, offset);
+        if (!word) return null;
+
+        const kw = keywords.get(word);
+        if (kw) {
+            return {
+                contents: {
+                    kind: 'markdown',
+                    value: kw.documentation!,
+                },
+            };
+        }
+
+        const res = lastData[sentence.index].result.get(word);
+
+        if (!res) return null;
+
+        const type = getTypeOfWord(word, sentence.sentence, res, offset);
+        if (!type) return null;
+
+        return {
+            contents: {
+                kind: 'markdown',
+                value:
+                    type.kind === 'ok'
+                        ? '```pieuvre\n' + type.type + '\n```'
+                        : 'No idea',
+            },
+        };
+    } catch {
         return null;
     }
-
-    update(document);
-    const sentence = getSurroundingSentence(document, params.position);
-    const offset =
-        getOffsetFromPosition(document.getText(), params.position) -
-        sentence.start;
-
-    const word = getWordAtOffset(sentence.sentence, offset);
-    if (!word) return null;
-
-    const res = lastData[sentence.index].result.get(word);
-
-    if (!res) return null;
-
-    const type = getTypeOfWord(word, sentence.sentence, res, offset);
-    if (!type) return null;
-
-    return {
-        contents: {
-            kind: 'plaintext',
-            value: type.kind === 'ok' ? type.type : 'No idea',
-        },
-    };
 });
 
 connection.onCompletionResolve((item: CompletionItem): CompletionItem => item);
 
-connection.onDidChangeTextDocument((params: DidChangeTextDocumentParams) => {
-    const document = documents.get(params.textDocument.uri);
-    if (!document) {
+connection.onDidChangeTextDocument(
+    async (params: DidChangeTextDocumentParams) => {
+        const document = documents.get(params.textDocument.uri);
+        if (!document) {
+            return null;
+        }
+
+        try {
+            await update(document);
+        } catch (e) {
+            console.error(e);
+        }
+
         return null;
-    }
+    },
+);
 
-    update(document);
-
-    return null;
+connection.onExit(async () => {
+    await prover?.stop();
 });
 
 async function update(document: TextDocument) {
-    if (document.version === lastProcessedVersion) return;
+    if (document.version === lastProcessedVersion) {
+        console.log('update: version unchanged, skipping');
+        return;
+    }
+    console.log('update: version changed');
 
     await prover?.untilStarted();
 
     if (!prover)
         throw 'The "workspace/preferences" notification should have happened before this.';
 
-    const currentPartialData = getSentences(document).map((sentence) => ({
-        hash: hash('sha256', sentence, 'base64'),
-        sentence,
+    const currentPartialData = getSentences(document).map((data) => ({
+        ...data,
+        hash: hash('sha256', data.sentence, 'base64'),
     }));
 
-    let toUndo = lastData.length;
+    let undoIndex = 0;
 
-    const newData = [...currentPartialData];
-
-    for (let i = 0; i < currentPartialData.length; i++) {
-        if (lastData[i]?.hash === currentPartialData[i].hash) {
-            newData.pop()!;
-            toUndo--;
+    for (
+        let i = 0;
+        i < Math.min(lastData.length, currentPartialData.length);
+        i++
+    ) {
+        if (lastData[i].hash !== currentPartialData[i].hash) {
+            break;
         }
+        undoIndex++;
     }
 
-    for (let i = 0; i < toUndo; i++) {
+    while (lastData.length > undoIndex) {
         await prover.sendCommand('[UNDO]', lastData.pop()!.sentence);
     }
 
+    const newData = currentPartialData.slice(undoIndex);
+
+    const diagnostics: Diagnostic[] = [];
+
     for (const data of newData) {
-        const result = await getTypeofSentence(data.sentence);
-        lastData.push({ ...data, result });
+        try {
+            const result = await getTypeofSentence(data.sentence);
+            lastData.push({ ...data, result });
+
+            const words = [...data.sentence.matchAll(/\b\w+\b/g)];
+
+            for (const [x, l] of result.entries()) {
+                const xs = words.filter((y) => y[0] == x);
+
+                for (let i = 0; i < l.length; i++) {
+                    if (l[i].kind == 'unknown') {
+                        const start =
+                            xs[i].index + document.offsetAt(data.range.start);
+                        const end = start + x.length;
+                        const range = Range.create(
+                            document.positionAt(start),
+                            document.positionAt(end),
+                        );
+
+                        diagnostics.push({
+                            message: `Unknown variable ${x}`,
+                            range,
+                            severity: DiagnosticSeverity.Error,
+                        });
+                    }
+                }
+            }
+        } catch (e: any) {
+            diagnostics.push({
+                message: e.toString(),
+                range: data.range,
+                severity: DiagnosticSeverity.Error,
+            });
+        }
     }
+
+    console.log(diagnostics);
+    connection.sendDiagnostics({ uri: document.uri, diagnostics });
 
     lastProcessedVersion = document.version;
 }
@@ -157,42 +243,32 @@ function getTransformed(text: string): string {
     return (
         text
             .replaceAll(
-                /((Lemma|Proposition|Theorem|Goal).*?\.)(.|\n)*?(Qed|Admitted|Save .*?|Abort)\./gm,
+                /((Lemma|Proposition|Theorem|Goal).*?\.)(.|\n)*?(Qed|Admitted|Save .*?|Abort)\./g,
                 '$1',
             )
             // Remove proof's content (as they depend heavily on the tactic system, the goal and everything)
             // that's a lot of work to try to "predict" the results without actually computing any expensive things
-            .replaceAll(/Goal ((.|\n)*?)\./gm, 'Axiom _ : $1.')
-            .replaceAll(/(Lemma|Proposition|Theorem)/gm, 'Axiom')
+            .replaceAll(/Goal ((.|\n)*?)\./g, 'Axiom _ : $1.')
+            .replaceAll(/(Lemma|Proposition|Theorem)/g, 'Axiom')
     );
 }
 
 function splitSentencesWithOffsets(
     text: string,
 ): { sentence: string; start: number; end: number }[] {
-    const results = [];
+    const match =
+        /(\s*(Lemma|Proposition|Theorem|Goal).*?\.(?:.|\n)*?(Qed\.|Admitted\.|Save .*?\.|Abort\.|\Z)\s*)|(\s*(.|\n)*?\.\s*)/g;
+
+    const matches = [...text.matchAll(match)];
+
     let current = 0;
-
-    const matchProof =
-        /((Lemma|Proposition|Theorem|Goal).*?\.(?:.|\n)*?(Qed\.|Admitted\.|Save .*?\.|Abort\.|\Z))/gm;
-    const matchSentence = /(.|\n)*?/gm;
-
-    function matchTwo(text: string): RegExpExecArray | null {
-        const proof = matchProof.exec(text);
-        if (proof !== null) return proof;
-        return matchSentence.exec(text);
-    }
-
-    let match;
-    while ((match = matchTwo(text.substring(current)))) {
-        const sentence = match[0];
-        const start = match.index;
-        const end = start + sentence.length;
-        results.push({ sentence, start, end });
-        current = end;
-    }
-
-    return results;
+    return matches.map((m) => {
+        const sentence = m[0];
+        const start = current;
+        current += sentence.length;
+        const end = current;
+        return { start, end, sentence };
+    });
 }
 
 function getOffsetFromPosition(text: string, position: Position): number {
@@ -204,9 +280,7 @@ function getOffsetFromPosition(text: string, position: Position): number {
     return offset + position.character;
 }
 
-function getSurroundingSentence(document: TextDocument, position: Position) {
-    const text = document.getText();
-    const offset = getOffsetFromPosition(text, position);
+function getSurroundingSentence(text: string, offset: number) {
     const sentences = splitSentencesWithOffsets(text);
 
     for (let i = 0; i < sentences.length; i++) {
@@ -239,14 +313,16 @@ function getTypeOfWord(
     return result[n];
 }
 
-function getSentences(document: TextDocument): string[] {
-    const sentences = getTransformed(document.getText())
-        .split('.')
-        .map((x) => x + '.');
-
-    sentences.pop();
-
-    return sentences;
+function getSentences(document: TextDocument) {
+    return splitSentencesWithOffsets(document.getText()).map(
+        ({ sentence, start, end }) => ({
+            sentence,
+            range: Range.create(
+                document.positionAt(start),
+                document.positionAt(end),
+            ),
+        }),
+    );
 }
 
 async function getTypeofSentence(
@@ -255,7 +331,7 @@ async function getTypeofSentence(
     if (!prover)
         throw 'The "workspace/preferences" notification should have happened before this.';
 
-    const res = await prover.sendCommand('[TYPES]', sentence);
+    const res = await prover.sendCommand('[TYPES]', getTransformed(sentence));
 
     const groups: string[][] = [];
     let currentGroup: string[] = [];
@@ -277,9 +353,17 @@ async function getTypeofSentence(
     for (const group of groups) {
         const last = group.pop()!;
         if (last.startsWith('#ok')) {
-            const [vari, rest] = group.shift()!.split(';');
-            const type = [rest, ...group].join('\n');
+            const [v, rest] = group.shift()!.split(';');
+            const vari = v.trim();
+            const type = [rest, ...group].join('\n').trim();
             const res: IVarTypeResult = { kind: 'ok', type };
+            const l = map.get(vari);
+            if (!l) map.set(vari, [res]);
+            else l.push(res);
+        } else if (last.startsWith('#unknown')) {
+            const [v, _] = group.shift()!.split(';');
+            const vari = v.trim();
+            const res: IVarTypeResult = { kind: 'unknown' };
             const l = map.get(vari);
             if (!l) map.set(vari, [res]);
             else l.push(res);
@@ -288,8 +372,6 @@ async function getTypeofSentence(
 
     return map;
 }
-
-connection.onExit(() => prover?.stop());
 
 documents.listen(connection);
 connection.listen();

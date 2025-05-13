@@ -157,10 +157,11 @@ export abstract class PieuvreProver {
         return wasProcessing;
     }
 
-    stop() {
+    async stop() {
         this.cancelNextCommands();
-        this.process?.kill();
+        await this.sendCommand('[QUIT]', '');
         this.disposeLog();
+        console.log('Been killed ?', this.process?.killed);
     }
 
     private _stdoutBuffer = '';

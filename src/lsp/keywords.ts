@@ -162,26 +162,6 @@ export const keywordCompletionItems: CompletionItem[] = [
         documentation: 'Type of propositions',
     },
     {
-        label: 'nat',
-        kind: CompletionItemKind.Keyword,
-        documentation: 'Types of natural numbers',
-    },
-    {
-        label: 'bool',
-        kind: CompletionItemKind.Keyword,
-        documentation: 'Types of booleans',
-    },
-    {
-        label: 'list',
-        kind: CompletionItemKind.Keyword,
-        documentation: 'Types of lists',
-    },
-    {
-        label: 'option',
-        kind: CompletionItemKind.Keyword,
-        documentation: 'Types of options',
-    },
-    {
         label: 'forall',
         kind: CompletionItemKind.Keyword,
         documentation: 'Check if a property is true for all values',
@@ -192,22 +172,7 @@ export const keywordCompletionItems: CompletionItem[] = [
         documentation: 'Check if a property is true for some value',
     },
     {
-        label: 'and',
-        kind: CompletionItemKind.Keyword,
-        documentation: 'Conjunction of two properties',
-    },
-    {
-        label: 'or',
-        kind: CompletionItemKind.Keyword,
-        documentation: 'Disjunction of two properties',
-    },
-    {
         label: '\\~',
-        kind: CompletionItemKind.Keyword,
-        documentation: 'Negation of a property',
-    },
-    {
-        label: 'not',
         kind: CompletionItemKind.Keyword,
         documentation: 'Negation of a property',
     },
@@ -327,6 +292,6 @@ export const keywordCompletionItems: CompletionItem[] = [
     },
 ];
 
-export const keywords = new Set(
-    keywordCompletionItems.map(({ label }) => label),
+export const keywords = new Map<string, CompletionItem>(
+    keywordCompletionItems.map((obj) => [obj.label, obj]),
 );

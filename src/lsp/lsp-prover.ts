@@ -4,6 +4,7 @@ export class LSPPieuvreProver extends PieuvreProver {
     constructor(
         protected path: string,
         protected flags: string[],
+        protected showDebugLog: boolean,
     ) {
         super();
     }
@@ -15,7 +16,7 @@ export class LSPPieuvreProver extends PieuvreProver {
         return this.flags;
     }
     protected appendLog(log: string): void {
-        console.log(log);
+        if (this.showDebugLog) console.log(log);
     }
     protected disposeLog(): void {}
 

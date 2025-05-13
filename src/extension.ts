@@ -59,10 +59,9 @@ export function activate(context: vscode.ExtensionContext) {
         .get<string>('pieuvre Binary.Flags', '')
         .split(' ')
         .filter((x) => x.length > 0);
+    const showLog = config.get<boolean>('pieuvre LSP.Show LSP Logs');
 
-    client.sendNotification('workspace/preferences', { bin, flags });
-
-    context.subscriptions.push({ dispose: () => client.stop() });
+    client.sendNotification('workspace/preferences', { bin, flags, showLog });
 
     client
         .start()
@@ -237,7 +236,9 @@ function updateProofState(response: string, error: boolean = false) {
     }
 }
 
-export function deactivate() {
-    prover.stop();
+export async function deactivate() {
+    await prover.stop();
     proofManager.dispose();
+    await client.sendNotification('stopping');
+    await client.stop();
 }
