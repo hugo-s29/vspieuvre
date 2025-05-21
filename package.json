@@ -33,6 +33,11 @@
                     "vspieuvre.pieuvre Binary.Flags": {
                         "type": "string",
                         "description": "Flags for the pieuvre executable"
+                    },
+                    "vspieuvre.pieuvre ASCII.Show": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Show ASCII art animation in the proof panel webview."
                     }
                 }
             }

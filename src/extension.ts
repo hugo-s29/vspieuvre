@@ -240,6 +240,11 @@ function createProofPanel(
         context.subscriptions,
     );
 
+    const config = vscode.workspace.getConfiguration('vspieuvre');
+    panel.webview.postMessage({
+        asciiAnimation: config.get<boolean>('pieuvre ASCII.Show', false),
+    });
+
     return panel;
 }
 
