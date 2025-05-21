@@ -77,15 +77,37 @@ export class PieuvreProver {
             throw new Error('Prover not initialized');
         }
 
-        return new Promise((resolve) => {
-            const listener = (data: Buffer) => {
-                const output = data.toString();
-                this.process?.stdout?.off('data', listener);
-                resolve(output);
+        return new Promise((resolve, reject) => {
+            let handled: 'no' | 'ok' | 'nok' = 'no';
+
+            const listenerOK = (data: Buffer) => {
+                // In case the error comes just a little after
+                setTimeout(() => {
+                    if (handled != 'no') return;
+
+                    const output = data.toString();
+                    this.process?.stdout?.off('data', listenerOK);
+                    this.process?.stderr?.off('data', listenerNOK);
+                    resolve(output);
+                    handled = 'ok';
+                }, 50);
             };
 
-            this.process?.stdout?.on('data', listener);
-            this.process?.stdin?.write(`${command.replaceAll('\n', ' ')}\n`);
+            const listenerNOK = (data: Buffer) => {
+                const output = data.toString();
+                this.process?.stdout?.off('data', listenerOK);
+                this.process?.stderr?.off('data', listenerNOK);
+                reject(output);
+                handled = 'nok';
+            };
+
+            const cmd = `${command.trim().replaceAll('\n', ' ')}\n\n`;
+
+            this.process?.stdout?.on('data', listenerOK);
+            this.process?.stderr?.on('data', listenerNOK);
+            this.process?.stdin?.write(cmd);
+
+            this.outputChannel.appendLine(cmd);
         });
     }
 

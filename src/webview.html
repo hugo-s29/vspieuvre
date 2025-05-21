@@ -51,7 +51,9 @@
                 border-color: var(--vscode-inputValidation-warningBorder);
             }
             button.warning:hover {
-                background-color: var(--vscode-inputValidation-warningBackground);
+                background-color: var(
+                    --vscode-inputValidation-warningBackground
+                );
             }
 
             .command-container {
@@ -113,7 +115,12 @@
 
         <div class="command-container">
             <h3>Send Command to Prover</h3>
-            <div id="commandEditor" class="command-editor" contenteditable="true" spellcheck="false"></div>
+            <div
+                id="commandEditor"
+                class="command-editor"
+                contenteditable="true"
+                spellcheck="false"
+            ></div>
             <button id="sendCommand" class="secondary">Send Command</button>
         </div>
 
@@ -129,17 +136,17 @@
                     };
                     document.body.appendChild(loaderScript);
                 });
-            }        
+            }
 
             const vscode = acquireVsCodeApi();
 
-            <!-- const monacoLoader = await loadMonaco(); -->
-            <!-- const editor = monaco.editor.create(document.getElementById('commandEditor'), { -->
-                <!-- value: '', -->
-                <!-- language: 'pieuvre', -->
-                <!-- minimap: { enabled: true }, -->
-                <!-- automaticLayout: true, -->
-            <!-- }); -->
+            const monacoLoader = await loadMonaco();
+            const editor = monaco.editor.create(document.getElementById('commandEditor'), {
+                value: '',
+                language: 'pieuvre',
+                minimap: { enabled: true },
+                automaticLayout: true,
+            });
 
             // Button handlers
             document
@@ -161,9 +168,9 @@
             document.getElementById('sendCommand').addEventListener('click', () => {
                 const command = document.getElementById('commandEditor').innerText.trim();
                 if (command) {
-                    vscode.postMessage({ 
+                    vscode.postMessage({
                         command: 'send-custom-command',
-                        text: command 
+                        text: command
                     });
                     document.getElementById('commandEditor').innerText = '';
                 }

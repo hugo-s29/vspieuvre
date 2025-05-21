@@ -170,7 +170,7 @@ function updateAndRevalidate(document: TextDocument) {
     if (document.version === lastProcessedVersion) return;
 
     updateDefinitions(document);
-    validateVariableUsage(document);
+    //validateVariableUsage(document);
 
     lastProcessedVersion = document.version;
 }
@@ -185,47 +185,6 @@ connection.onDidChangeTextDocument((params: DidChangeTextDocumentParams) => {
 
     return null;
 });
-
-function validateVariableUsage(document: TextDocument) {
-    const diagnostics: Diagnostic[] = [];
-    const text = document.getText();
-    const lines = text.split('\n');
-
-    const wordPattern = /\b\w+\b/g;
-
-    lines.forEach((line, lineNum) => {
-        const matches = [...line.matchAll(wordPattern)];
-        console.log(matches);
-        matches.forEach((match) => {
-            const word = match[0];
-
-            if (keywords.has(word)) return;
-
-            const character = match.index!;
-
-            const allDefinitions = definitions
-                .get(word)
-                ?.filter(({ lineNum: defLineNum }) => defLineNum <= lineNum);
-
-            if (!allDefinitions || allDefinitions.length === 0) {
-                diagnostics.push({
-                    severity: 1, // Error
-                    range: Range.create(
-                        Position.create(lineNum, character),
-                        Position.create(lineNum, character + word.length),
-                    ),
-                    message: `Variable "${word}" is not defined.`,
-                    source: 'LSP',
-                });
-            }
-        });
-    });
-
-    console.log(diagnostics);
-
-    // Send diagnostics to the client
-    connection.sendDiagnostics({ uri: document.uri, diagnostics });
-}
 
 function updateDefinitions(document: TextDocument) {
     definitions.clear();

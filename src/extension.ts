@@ -30,7 +30,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
-    proofManager = new ProofManager();
+    proofManager = new ProofManager(prover);
 
     let serverModule = context.asAbsolutePath(path.join('dist', 'lsp.js'));
     let debugOptions = { execArgv: ['--nolazy', '--inspect=6009'] };
@@ -103,15 +103,27 @@ export function activate(context: vscode.ExtensionContext) {
 
             const sentence = proofManager.getNextSentence();
             if (editor && sentence) {
-                const response = await prover.sendCommand(sentence.text);
-                updateProofState(response);
+                try {
+                    const response = await prover.sendCommand(sentence.text);
+                    updateProofState(response);
 
-                // Highlight in editor
-                editor.selection = new vscode.Selection(
-                    sentence.range.end,
-                    sentence.range.end,
-                );
-                editor.revealRange(sentence.range);
+                    // Highlight in editor
+                    editor.selection = new vscode.Selection(
+                        sentence.range.end,
+                        sentence.range.end,
+                    );
+                    editor.revealRange(sentence.range);
+                } catch (err: any) {
+                    proofManager.updateDecorations(true);
+                    proofManager.undoLastStep(false);
+                    updateProofState(err.toString());
+
+                    editor.selection = new vscode.Selection(
+                        sentence.range.end,
+                        sentence.range.end,
+                    );
+                    editor.revealRange(sentence.range);
+                }
             } else {
                 vscode.window.showInformationMessage(
                     'No more sentences to process!',
@@ -122,27 +134,29 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('vspieuvre.stepBack', async () => {
             vscode.commands.executeCommand('vspieuvre.showProofPanel');
 
-            proofManager.undoLastStep();
-            const response = await prover.sendCommand('undo.');
+            const response = await prover.sendCommand('Undo.');
             updateProofState(response);
+            proofManager.undoLastStep();
         }),
 
-
-        
         vscode.commands.registerCommand('vspieuvre.restartProver', async () => {
             await prover.stop();
             prover = new PieuvreProver();
             const success = await prover.start();
             if (success) {
-                vscode.window.showInformationMessage('Pieuvre prover restarted successfully');
+                vscode.window.showInformationMessage(
+                    'Pieuvre prover restarted successfully',
+                );
                 // Optionally reset proof state
                 proofManager.dispose();
-                proofManager = new ProofManager();
-                updateProofState("🐙");
+                proofManager = new ProofManager(prover);
+                updateProofState('🐙');
             } else {
-                vscode.window.showErrorMessage('Failed to restart Pieuvre prover');
+                vscode.window.showErrorMessage(
+                    'Failed to restart Pieuvre prover',
+                );
             }
-        }),    
+        }),
     );
 
     context.subscriptions.push(
@@ -194,12 +208,18 @@ function createProofPanel(
                     await vscode.commands.executeCommand('vspieuvre.stepBack');
                     break;
                 case 'restart-prover':
-                    await vscode.commands.executeCommand('vspieuvre.restartProver');
-                    break;            
+                    await vscode.commands.executeCommand(
+                        'vspieuvre.restartProver',
+                    );
+                    break;
                 case 'send-custom-command':
-                    const response = await prover.sendCommand(message.text);
-                    updateProofState(response);
-                    break;            
+                    try {
+                        const response = await prover.sendCommand(message.text);
+                        updateProofState(response);
+                    } catch (e: any) {
+                        vscode.window.showErrorMessage(e.toString());
+                    }
+                    break;
             }
         },
         undefined,
